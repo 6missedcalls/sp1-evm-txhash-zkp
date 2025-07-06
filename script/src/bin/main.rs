@@ -13,7 +13,6 @@
 use clap::Parser;
 use ethers::providers::Middleware;
 use ethers::types::H256;
-use ethers::types::{U256, U64};
 use ethers::utils::keccak256;
 use rlp::RlpStream;
 use sp1_sdk::{include_elf, ProverClient, SP1Stdin};
@@ -36,9 +35,6 @@ struct Args {
 
     #[arg(long)]
     chain_name: String,
-
-    #[arg(long)]
-    chain_id: u64,
 }
 
 fn main() {
@@ -46,14 +42,24 @@ fn main() {
     dotenv::dotenv().ok();
 
     let infura_api_key = dotenv::var("INFURA_API_KEY").expect("INFURA_API_KEY must be set");
-    let rpc_url = format!("https://mainnet.infura.io/v3/{}", infura_api_key);
-    println!("RPC URL: {}", rpc_url);
-
     let args: Args = Args::parse();
     if args.execute == args.prove {
         eprintln!("Please provide either --execute or --prove");
         std::process::exit(1);
     }
+
+    // Determine the correct Infura RPC URL based on chain_name
+    let rpc_url = match args.chain_name.to_lowercase().as_str() {
+        "eth-mainnet" => format!("https://mainnet.infura.io/v3/{}", infura_api_key),
+        "eth-sepolia" => format!("https://sepolia.infura.io/v3/{}", infura_api_key),
+        "base-mainnet" => format!("https://base-mainnet.infura.io/v3/{}", infura_api_key),
+        "base-sepolia" => format!("https://base-sepolia.infura.io/v3/{}", infura_api_key),
+        _ => {
+            eprintln!("Unsupported chain name: {}", args.chain_name);
+            std::process::exit(1);
+        }
+    };
+    println!("RPC URL: {}", rpc_url);
 
     // setup the client
     let client = ProverClient::from_env();
