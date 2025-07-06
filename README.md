@@ -1,9 +1,31 @@
-# SP1 Project Template
+# SP1 Ethereum Transaction Hash Proof (ZK Attestation Circuit)
 
-> **Note:** This project is a proof-of-concept (PoC) written in about 30 minutes with zero sleep, on a plane. It is intended as a concept to build upon and not production code. Expect quick-and-dirty code, minimal error handling, and a focus on showing the core idea end-to-end.
+> ⚠️ Proof-of-concept. Built quickly to demonstrate a minimal ZK primitive. Only supports legacy Ethereum transactions (type 0) as of now.
 
-This is a template for creating an end-to-end [SP1](https://github.com/succinctlabs/sp1) project
-that can generate a proof of any RISC-V program.
+---
+
+## 🔐 What Does This ZK Circuit Prove?
+
+This project implements a zero-knowledge circuit using [SP1 zkVM](https://github.com/succinctlabs/sp1) to prove:
+
+> “I know a raw RLP-encoded Ethereum transaction that hashes to this exact `Keccak256(tx)` hash.”
+
+### ✅ In-ZK Circuit Behavior:
+- Reads the raw RLP bytes
+- Computes Keccak256
+- Compares to the claimed hash
+- Commits a single boolean: `true` if valid, `false` otherwise
+
+**No addresses, chain names, values, or signatures are revealed or committed.**
+
+---
+
+## ✨ Real-World Use Cases
+
+- **ZK Receipts** – Prove that a payment or interaction happened without revealing who, what, or when
+- **Cross-chain Proofs** – Prove something occurred on Ethereum or Base and use it privately on another chain
+- **Gated Access** – Show that a user interacted with a DAO, contract, or token before unlocking a resource
+- **Private Onboarding** – Let users prove past on-chain behavior without disclosing addresses
 
 ## Requirements
 
