@@ -2009,33 +2009,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fibonacci-lib"
-version = "0.1.0"
-dependencies = [
- "alloy-sol-types",
-]
-
-[[package]]
-name = "fibonacci-script"
-version = "0.1.0"
-dependencies = [
- "alloy-sol-types",
- "clap",
- "dotenv",
- "ethers",
- "eyre",
- "fibonacci-lib",
- "hex",
- "rlp",
- "serde",
- "serde_json",
- "sp1-build",
- "sp1-sdk",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "fixed-hash"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6448,12 +6421,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "txn-verifier-lib"
+version = "0.1.0"
+dependencies = [
+ "alloy-sol-types",
+]
+
+[[package]]
 name = "txn-verifier-program"
 version = "0.1.0"
 dependencies = [
  "alloy-sol-types",
  "sp1-zkvm",
  "tiny-keccak",
+]
+
+[[package]]
+name = "txn-verifier-script"
+version = "0.1.0"
+dependencies = [
+ "alloy-sol-types",
+ "clap",
+ "dotenv",
+ "ethers",
+ "eyre",
+ "hex",
+ "rlp",
+ "serde",
+ "serde_json",
+ "sp1-build",
+ "sp1-sdk",
+ "tokio",
+ "tracing",
+ "txn-verifier-lib",
 ]
 
 [[package]]

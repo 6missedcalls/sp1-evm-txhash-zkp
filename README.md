@@ -18,7 +18,6 @@ This project demonstrates a zero-knowledge proof (ZKP) system that proves the ex
 
    - The transaction hash (`hash`)
    - The chain name (`chain_name`)
-   - The chain id (`chain_id`)
 
 2. **Fetch and process (off-chain, in the script):**
 
@@ -34,7 +33,7 @@ This project demonstrates a zero-knowledge proof (ZKP) system that proves the ex
 
 - **User Input:**
 
-  - The user only needs to provide the transaction hash, chain name, and chain id as command-line arguments.
+  - The user only needs to provide the transaction hash, chain name as command-line arguments.
 
 - **Transaction Fetching:**
 
@@ -85,8 +84,7 @@ cd script
 cargo run --release -- \
   --execute \
   --hash 0xc416863b395d6c1d984d7a1cf9ab1bddb8f73d201efb943e24d15ce996842ace \
-  --chain-name mainnet \
-  --chain-id 1
+  --chain-name eth-mainnet
 ```
 
 This will execute the program and display the output.
@@ -97,7 +95,9 @@ To generate an SP1 [core proof](https://docs.succinct.xyz/docs/sp1/generating-pr
 
 ```sh
 cd script
-cargo run --release -- --prove
+cargo run --release -- --prove \
+  --hash 0xc416863b395d6c1d984d7a1cf9ab1bddb8f73d201efb943e24d15ce996842ace \
+  --chain-name eth-mainnet
 ```
 
 ### Generate an EVM-Compatible Proof

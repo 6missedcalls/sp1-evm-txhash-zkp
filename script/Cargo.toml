@@ -1,20 +1,12 @@
 [package]
 version = "0.1.0"
-name = "fibonacci-script"
+name = "txn-verifier-script"
 edition = "2021"
-default-run = "fibonacci"
+default-run = "txn-verifier"
 
 [[bin]]
-name = "fibonacci"
+name = "txn-verifier"
 path = "src/bin/main.rs"
-
-[[bin]]
-name = "evm"
-path = "src/bin/evm.rs"
-
-[[bin]]
-name = "vkey"
-path = "src/bin/vkey.rs"
 
 [dependencies]
 sp1-sdk = "5.0.0"
@@ -24,7 +16,7 @@ clap = { version = "4.0", features = ["derive", "env"] }
 tracing = "0.1.40"
 hex = "0.4.3"
 alloy-sol-types = { workspace = true }
-fibonacci-lib = { path = "../lib" }
+txn-verifier-lib = { path = "../lib" }
 dotenv = "0.15.0"
 ethers = { version = "2.0", features = ["rustls"] }
 tokio = { version = "1", features = ["macros"] }
