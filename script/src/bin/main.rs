@@ -110,15 +110,35 @@ fn main() {
 }
 
 fn fetch_rlp_and_hash(rpc_url: &str, hash: &str) -> (Vec<u8>, [u8; 32]) {
+    use ethers::types::U64;
     let rt = tokio::runtime::Runtime::new().unwrap();
     let provider = ethers::providers::Provider::try_from(rpc_url).unwrap();
     let hash = H256::from_str(hash).unwrap();
-    let tx = rt
-        .block_on(provider.get_transaction(hash))
-        .unwrap()
-        .unwrap();
 
-    // For legacy transactions, manually RLP encode the fields
+    let tx_opt = rt
+        .block_on(provider.get_transaction(hash))
+        .expect("Failed to query Ethereum RPC");
+
+    let tx = match tx_opt {
+        Some(tx) => tx,
+        None => {
+            eprintln!("Transaction not found on chain: {}", hash);
+            std::process::exit(1);
+        }
+    };
+
+    let rlp_bytes = match tx.transaction_type {
+        Some(U64([2])) => encode_eip1559(&tx),
+        Some(U64([1])) => encode_eip2930(&tx),
+        None => encode_legacy(&tx),
+        Some(other) => panic!("Unsupported tx type: {:?}", other),
+    };
+
+    let claimed_hash = keccak256(&rlp_bytes);
+    (rlp_bytes, claimed_hash)
+}
+
+fn encode_legacy(tx: &ethers::types::Transaction) -> Vec<u8> {
     let mut stream = RlpStream::new();
     stream.begin_list(9);
     stream.append(&tx.nonce);
@@ -130,7 +150,47 @@ fn fetch_rlp_and_hash(rpc_url: &str, hash: &str) -> (Vec<u8>, [u8; 32]) {
     stream.append(&tx.v);
     stream.append(&tx.r);
     stream.append(&tx.s);
-    let rlp_bytes = stream.out().to_vec();
-    let claimed_hash = keccak256(&rlp_bytes);
-    (rlp_bytes, claimed_hash)
+    stream.out().to_vec()
+}
+
+fn encode_eip1559(tx: &ethers::types::Transaction) -> Vec<u8> {
+    let mut stream = RlpStream::new_list(12);
+    stream.append(&tx.chain_id.unwrap_or_default());
+    stream.append(&tx.nonce);
+    stream.append(&tx.max_priority_fee_per_gas.unwrap_or_default());
+    stream.append(&tx.max_fee_per_gas.unwrap_or_default());
+    stream.append(&tx.gas);
+    stream.append(&tx.to.unwrap_or_default());
+    stream.append(&tx.value);
+    stream.append(&tx.input.0);
+    stream.begin_list(0); // empty access list
+    stream.append(&tx.v);
+    stream.append(&tx.r);
+    stream.append(&tx.s);
+
+    let mut out = vec![0x02]; // prefix for type 2
+    out.extend(stream.out());
+    out
+}
+
+fn encode_eip2930(tx: &ethers::types::Transaction) -> Vec<u8> {
+    let mut stream = RlpStream::new_list(11);
+    stream.append(&tx.chain_id.unwrap_or_default());
+    stream.append(&tx.nonce);
+    stream.append(&tx.gas_price.unwrap_or_default()); // for 2930, it's just 'gas price'
+    stream.append(&tx.gas);
+    stream.append(&tx.to.unwrap_or_default());
+    stream.append(&tx.value);
+    stream.append(&tx.input.0);
+
+    // Access list is required, even if empty
+    stream.begin_list(0); // You could parse tx.access_list if it's ever present
+
+    stream.append(&tx.v);
+    stream.append(&tx.r);
+    stream.append(&tx.s);
+
+    let mut out = vec![0x01]; // EIP-2930 prefix
+    out.extend(stream.out());
+    out
 }
