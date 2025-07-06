@@ -5,12 +5,21 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-pub fn main() {
-    let from = sp1_zkvm::io::read::<[u8; 20]>();
-    let to = sp1_zkvm::io::read::<[u8; 20]>();
-    let amount = sp1_zkvm::io::read::<u64>();
-    let hash = sp1_zkvm::io::read::<[u8; 32]>();
+use tiny_keccak::{Hasher, Keccak};
 
-    let is_valid = from == to && amount == amount;
+pub fn main() {
+    let rlp_len = sp1_zkvm::io::read::<usize>();
+    let mut rlp_bytes = Vec::with_capacity(rlp_len);
+    for _ in 0..rlp_len {
+        rlp_bytes.push(sp1_zkvm::io::read::<u8>());
+    }
+
+    let claimed_hash = sp1_zkvm::io::read::<[u8; 32]>();
+    let mut keccak256 = Keccak::v256();
+    keccak256.update(&rlp_bytes);
+    let mut computed_hash = [0u8; 32];
+    keccak256.finalize(&mut computed_hash);
+
+    let is_valid = claimed_hash == computed_hash;
     sp1_zkvm::io::commit(&is_valid);
 }

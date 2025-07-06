@@ -8,3 +8,10 @@ resolver = "2"
 
 [workspace.dependencies]
 alloy-sol-types = "1.0"
+
+# If there is a [patch] section in program/Cargo.toml, move it here. For example:
+# [patch.crates-io]
+# sp1-stdlib = { path = "./path/to/local/sp1-stdlib" }
+
+[patch.crates-io]
+tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", branch = "patch-v2.0.2" }

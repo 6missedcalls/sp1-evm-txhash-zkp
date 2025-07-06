@@ -11,7 +11,11 @@
 //! ```
 
 use clap::Parser;
-use ethers::{prelude::*, types::U256};
+use ethers::providers::Middleware;
+use ethers::types::H256;
+use ethers::types::{U256, U64};
+use ethers::utils::keccak256;
+use rlp::RlpStream;
 use sp1_sdk::{include_elf, ProverClient, SP1Stdin};
 use std::convert::TryFrom;
 use std::str::FromStr;
@@ -26,15 +30,6 @@ struct Args {
 
     #[arg(long)]
     prove: bool,
-
-    #[arg(long)]
-    to: String,
-
-    #[arg(long)]
-    from: String,
-
-    #[arg(long)]
-    amount: String,
 
     #[arg(long)]
     hash: String,
@@ -63,14 +58,16 @@ fn main() {
     // setup the client
     let client = ProverClient::from_env();
 
+    // fetch the transaction and prepare inputs
+    let (rlp_bytes, claimed_hash) = fetch_rlp_and_hash(&rpc_url, &args.hash);
+
     // read the inputs
     let mut stdin = SP1Stdin::new();
-    stdin.write(&args.from);
-    stdin.write(&args.to);
-    stdin.write(&args.amount);
-    stdin.write(&args.hash);
-    stdin.write(&args.chain_name);
-    stdin.write(&args.chain_id);
+    stdin.write(&rlp_bytes.len());
+    for b in &rlp_bytes {
+        stdin.write(b);
+    }
+    stdin.write(&claimed_hash);
 
     if args.execute {
         // execute the program
@@ -80,9 +77,6 @@ fn main() {
         let valid = output.read::<bool>();
         println!("valid: {:?}", valid);
 
-        // verify the transaction ourselves
-        // we will call ethers and check
-        verify_transaction(&rpc_url, args.to, args.from, args.amount, args.hash).unwrap();
         if !valid {
             eprintln!("Transaction is invalid");
             std::process::exit(1);
@@ -104,45 +98,33 @@ fn main() {
         println!("Successfully generated proof!");
 
         // Verify the proof.
-        client.verify(&proof, &vk).expect("failed to verify proof");
+        client.verify(&proof, &vk).expect("failed to verify proof!");
         println!("Successfully verified proof!");
     }
 }
 
-#[tokio::main]
-async fn verify_transaction(
-    rpc_url: &str,
-    to: String,
-    from: String,
-    amount: String,
-    hash: String,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let provider = Provider::<Http>::try_from(rpc_url)?;
-    let to_address = Address::from_str(&to)?;
-    let from_address = Address::from_str(&from)?;
-    let amount = U256::from_dec_str(&amount)?;
-    let hash = H256::from_str(&hash)?;
+fn fetch_rlp_and_hash(rpc_url: &str, hash: &str) -> (Vec<u8>, [u8; 32]) {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let provider = ethers::providers::Provider::try_from(rpc_url).unwrap();
+    let hash = H256::from_str(hash).unwrap();
+    let tx = rt
+        .block_on(provider.get_transaction(hash))
+        .unwrap()
+        .unwrap();
 
-    let tx = provider.get_transaction(hash).await?;
-    let tx = tx.ok_or("Transaction not found")?;
-
-    if tx.to.expect("Transaction to address is None") != to_address {
-        println!("Expected to:   {:?}", to_address);
-        println!(
-            "Actual tx.to:  {:?}",
-            tx.to.expect("Transaction to address is None")
-        );
-        return Err("Transaction to address does not match".into());
-    }
-    if tx.from != from_address {
-        return Err("Transaction from address does not match".into());
-    }
-    if tx.value != amount {
-        return Err("Transaction amount does not match".into());
-    }
-    if tx.hash != hash {
-        return Err("Transaction hash does not match".into());
-    }
-
-    Ok(())
+    // For legacy transactions, manually RLP encode the fields
+    let mut stream = RlpStream::new();
+    stream.begin_list(9);
+    stream.append(&tx.nonce);
+    stream.append(&tx.gas_price.unwrap_or_default());
+    stream.append(&tx.gas);
+    stream.append(&tx.to.unwrap_or_default());
+    stream.append(&tx.value);
+    stream.append(&tx.input.0);
+    stream.append(&tx.v);
+    stream.append(&tx.r);
+    stream.append(&tx.s);
+    let rlp_bytes = stream.out().to_vec();
+    let claimed_hash = keccak256(&rlp_bytes);
+    (rlp_bytes, claimed_hash)
 }

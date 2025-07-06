@@ -16,58 +16,54 @@ This project demonstrates a zero-knowledge proof (ZKP) system that proves the ex
 
 1. **Take as input:**
 
-   - The expected sender address (`from`)
-   - The expected recipient address (`to`)
-   - The expected amount of Ether transferred (`amount`)
-   - The expected transaction hash (`hash`)
+   - The transaction hash (`hash`)
+   - The chain name (`chain_name`)
+   - The chain id (`chain_id`)
 
-2. **Fetch and provide (off-chain):**
+2. **Fetch and process (off-chain, in the script):**
 
-   - The actual sender address, recipient address, amount, and hash from the Ethereum blockchain for the given transaction hash.
+   - The script uses the provided transaction hash to fetch the full transaction details from an Ethereum node (via Infura and ethers-rs).
+   - It reconstructs the RLP-encoded form of the transaction using the transaction fields (nonce, gas price, gas, to, value, input, v, r, s).
+   - It computes the Keccak-256 hash of the RLP-encoded transaction, which is the canonical transaction hash on Ethereum.
 
 3. **Prove, in zero-knowledge, that:**
-   - The actual transaction on-chain matches the expected `from`, `to`, `amount`, and `hash` values provided as public inputs.
+   - The claimed transaction hash matches the Keccak-256 hash of the RLP-encoded transaction data.
    - This check is performed inside the zkVM circuit, and the result (valid/invalid) is committed as a public output.
 
-### How the Prover Works (program/src/main.rs)
+### How the Script Works (script/src/bin/main.rs)
 
-The prover is a minimal RISC-V program designed to run inside the SP1 zkVM. Its job is to check that the transaction details provided as input match the expected values. Here's how it works:
+- **User Input:**
 
-- **Inputs:**
+  - The user only needs to provide the transaction hash, chain name, and chain id as command-line arguments.
 
-  - The program reads four values from its input stream: `from` (20 bytes), `to` (20 bytes), `amount` (u64), and `hash` (32 bytes). These are provided by the script, which fetches them from the blockchain and/or user input.
+- **Transaction Fetching:**
 
-- **Logic:**
+  - The script connects to an Ethereum node (via Infura) and fetches the transaction details using the provided hash.
 
-  - The program compares the `from` and `to` addresses, the `amount`, and the `hash` for equality. (In the current PoC, the check is simply `from == to && amount == amount`, which is a placeholder for a real check. In a production version, you would compare all fields for equality.)
+- **RLP Encoding:**
 
-- **Output:**
-  - The program commits a boolean value (`is_valid`) indicating whether the check passed. This value is output as a public value from the zkVM, and is included in the proof.
+  - The script reconstructs the RLP-encoded transaction by serializing the fields in the correct order (nonce, gas price, gas, to, value, input, v, r, s).
+  - It appends the raw values of `v`, `r`, and `s` directly, as these are always present in a confirmed transaction.
+
+- **Hash Calculation:**
+
+  - The script computes the Keccak-256 hash of the RLP-encoded transaction bytes. This is the canonical transaction hash on Ethereum.
+
+- **Input to zkVM:**
+
+  - The script writes the length of the RLP bytes, the RLP bytes themselves, and the claimed hash to the zkVM input stream.
+
+- **Proof Generation:**
+  - The zkVM program reads these inputs, recomputes the Keccak-256 hash inside the circuit, and checks that it matches the claimed hash. It then commits a boolean indicating whether the check passed.
 
 ### End-to-End Flow
 
-- The script (`script/src/bin/main.rs`) is responsible for:
+- The user provides a transaction hash, chain name, and chain id.
+- The script fetches the transaction, reconstructs the RLP encoding, and computes the hash.
+- The script passes these to the zkVM program.
+- The zkVM program verifies the hash matches the RLP encoding, and outputs a proof of this fact.
 
-  1. Accepting command-line arguments for the expected transaction details (`--from`, `--to`, `--amount`, `--hash`, etc.).
-  2. Fetching the actual transaction from the Ethereum blockchain using the provided hash.
-  3. Writing both the expected and actual transaction details into the zkVM's input stream in a specific order.
-  4. Running the zkVM program and reading the result (whether the transaction matches the expected details).
-  5. Optionally, generating a proof that can be verified by others or on-chain.
-
-- The zkVM program (`program/src/main.rs`) is responsible for:
-  1. Reading the expected and actual transaction details from its input stream.
-  2. Comparing the expected and actual values for `from`, `to`, `amount`, and `hash`.
-  3. Committing a boolean result (`is_valid`) indicating whether all values match.
-
-### What is being proven?
-
-The ZKP proves that:
-
-- There exists an Ethereum transaction with the given hash.
-- The transaction's sender, recipient, and amount match the expected values provided as public inputs.
-- The prover cannot cheat: the zkVM circuit enforces that the committed result is only `true` if all values match exactly.
-
-This allows anyone to verify, in zero-knowledge, that a specific transaction occurred on Ethereum with the claimed details, without trusting the prover or revealing any additional information.
+This allows anyone to verify, in zero-knowledge, that a specific transaction hash corresponds to a valid RLP-encoded Ethereum transaction, without revealing any additional information or requiring trust in the prover.
 
 ---
 
@@ -86,23 +82,11 @@ To run the program without generating a proof:
 
 ```sh
 cd script
-cargo run --release -- --prove \
-  --to 0x3242D1C7B855368d9D27D7d916510967fd194045 \
-  --from 0x3D5a8e2138dc42bA1ed61553e9A9CAcFD40b0664 \
-  --amount 350000000000000000 \
+cargo run --release -- \
+  --execute \
   --hash 0xc416863b395d6c1d984d7a1cf9ab1bddb8f73d201efb943e24d15ce996842ace \
-  --chain-name=mainnet --chain-id 1
-```
-
-Unverified transaction:
-
-```sh
-cargo run --release -- --execute \
-  --to 0x3242D1C7B855368d9D27D7d916510967fd194045 \
-  --from 0x3D5a8e2138dc42bA1ed61553e9A9CAcFD40b0608 \
-  --amount 350000000000000000 \
-  --hash 0xc416863b395d6c1d984d7a1cf9ab1bddb8f73d201efb943e24d15ce996842ace \
-  --chain-name=mainnet --chain-id 1
+  --chain-name mainnet \
+  --chain-id 1
 ```
 
 This will execute the program and display the output.
